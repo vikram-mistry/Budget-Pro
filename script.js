@@ -94,21 +94,24 @@
     function moveNavIndicator(activeBtn) {
        const nav = document.querySelector('nav');
        const indicator = document.getElementById('navIndicator');
-       if(!activeBtn || !indicator || activeBtn.dataset.tab === 'add') return;
+       // Added check to ensure we don't run this for the 'Add' button
+       if(!activeBtn || !indicator || activeBtn.dataset.tab === 'add') {
+          if(indicator) indicator.style.opacity = "0"; // Hide if on Add tab
+          return;
+       }
 
        const navRect = nav.getBoundingClientRect();
        const btnRect = activeBtn.getBoundingClientRect();
 
        // Calculate center of the active button relative to the nav
        const centerX = (btnRect.left - navRect.left) + (btnRect.width / 2);
-       // We want the 56px indicator to be centered there
-       const indicatorSize = 56;
+       // Matched size to CSS (50px)
+       const indicatorSize = 50;
        const left = centerX - (indicatorSize / 2);
 
-       // Note: width is fixed in CSS, we only translate X. Y is handled by CSS (translateY -50%)
-       // We need to preserve the Y transform from CSS.
-       // CSS has transform: translate(0, -50%); so here we use translate(X, -50%)
-       indicator.style.transform = `translate(${left}px, -50%)`;
+       // FIX: Changed `translate(${left}px, -50%)` to `translateX(${left}px)`
+       // This prevents JS from lifting the bubble up, letting CSS handle the height.
+       indicator.style.transform = `translateX(${left}px)`;
        indicator.style.opacity = "1";
     }
 
