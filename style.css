@@ -269,15 +269,22 @@
     /* Sliding Glass Circle Indicator */
     .nav-indicator {
       position: absolute;
-      width: 50px; /* Reduced slightly from 56px for a tighter fit */
-      height: 50px;
-      /* Changed from 50% to 16px for Squircle/Rounded Square look */
-      border-radius: 16px;
+      /* 1. Make it slightly taller to cover Icon + Text */
+      width: 52px;
+      height: 52px;
+
+      /* 2. Make it a soft squircle */
+      border-radius: 14px;
+
       top: auto;
-      /* Lowered the position (was 14px). Now it sits lower in the bar */
-      bottom: 8px;
-      /* Transform will be set by JS (translateX only) */
+
+      /* 3. Move it UP significantly so it aligns with the icon/text */
+      /* This prevents it from falling off the bottom or overlapping the safe area */
+      bottom: 24px;
+
       transform: translateX(0);
+
+      /* Keep your existing glass effects */
       background: rgba(56, 189, 248, 0.15); /* Sky blue tint */
       box-shadow: 0 0 15px rgba(56, 189, 248, 0.3), inset 0 0 5px rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(4px);

@@ -215,12 +215,8 @@
          csv += `${tx.date},${tx.type},${tx.amount},${tx.category || ''},${tx.account || ''},"${(tx.note||'').replace(/"/g, '""')}"\n`;
        });
 
-       const blob = new Blob([csv], { type: 'text/csv' });
-       const url = window.URL.createObjectURL(blob);
-       const a = document.createElement('a');
-       a.href = url;
-       a.download = `FinTrack_${monthKey}.csv`;
-       a.click();
+       // USE NEW HELPER
+       shareOrDownloadCSV(`FinTrack_${monthKey}.csv`, csv);
     };
 
     // NEW: Main Export CSV Logic for Logs Screen
@@ -231,12 +227,8 @@
          csv += `${tx.date},${tx.type},${tx.amount},${tx.category || ''},${tx.account || ''},"${(tx.note||'').replace(/"/g, '""')}"\n`;
        });
 
-       const blob = new Blob([csv], { type: 'text/csv' });
-       const url = window.URL.createObjectURL(blob);
-       const a = document.createElement('a');
-       a.href = url;
-       a.download = `FinTrack_All_Logs.csv`;
-       a.click();
+       // USE NEW HELPER
+       shareOrDownloadCSV(`FinTrack_All_Logs.csv`, csv);
     };
 
     function renderArchive() {
@@ -1147,14 +1139,26 @@
     // Data Management: Export JSON
     const exportBtn = document.getElementById("exportDataBtn");
     if(exportBtn) {
-       exportBtn.onclick = () => {
+       exportBtn.onclick = async () => {
            const dataStr = JSON.stringify(state, null, 2);
-           const blob = new Blob([dataStr], { type: "application/json" });
-           const url = URL.createObjectURL(blob);
-           const a = document.createElement('a');
-           a.href = url;
-           a.download = `FinTrack_Backup_${new Date().toISOString().slice(0,10)}.json`;
-           a.click();
+           const filename = `FinTrack_Backup_${new Date().toISOString().slice(0,10)}.json`;
+
+           // Create file for sharing
+           const file = new File([dataStr], filename, { type: "application/json" });
+
+           if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              try {
+                 await navigator.share({ files: [file], title: 'FinTrack Backup' });
+              } catch (e) { console.log("Share cancelled"); }
+           } else {
+              // Fallback
+              const blob = new Blob([dataStr], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              a.click();
+           }
        };
     }
 
@@ -1235,4 +1239,36 @@
              netWorthTooltip.classList.remove("visible");
           }
        });
+    }
+
+    /* Helper: Use Native Share for iOS to prevent browser bars appearing */
+    async function shareOrDownloadCSV(filename, csvContent) {
+      const file = new File([csvContent], filename, { type: "text/csv" });
+
+      // 1. Try Native iOS/Android Share Sheet first
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'FinTrack Export',
+            text: 'Here is your transaction data.'
+          });
+          return; // Success! No browser bars.
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error(err);
+          // If user cancelled, do nothing. If error, fall through to download.
+          return;
+        }
+      }
+
+      // 2. Desktop Fallback (Original Logic)
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a); // Required for Firefox/some browsers
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
     }
