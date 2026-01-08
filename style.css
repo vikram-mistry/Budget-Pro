@@ -9,7 +9,7 @@
     html {
       height: 100%;
       width: 100%;
-      overflow: hidden;
+      overflow: hidden;f
       -webkit-text-size-adjust: 100%;
     }
 
@@ -280,7 +280,7 @@
 
       /* 3. Move it UP significantly so it aligns with the icon/text */
       /* This prevents it from falling off the bottom or overlapping the safe area */
-      bottom: 26px;
+      bottom: 28px;
 
       transform: translateX(0);
 
