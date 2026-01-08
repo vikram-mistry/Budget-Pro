@@ -280,7 +280,7 @@
 
       /* 3. Move it UP significantly so it aligns with the icon/text */
       /* This prevents it from falling off the bottom or overlapping the safe area */
-      bottom: 24px;
+      bottom: 26px;
 
       transform: translateX(0);
 
