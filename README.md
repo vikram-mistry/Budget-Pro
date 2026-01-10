@@ -1,4 +1,4 @@
-# Fintrack Pro
+# Budget Pro
 
 Fintrack Pro is a personal finance management application designed to help users track their income, expenses, and investments efficiently. It provides a comprehensive view of your financial health with an intuitive and responsive user interface.
 
