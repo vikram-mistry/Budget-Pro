@@ -9,7 +9,7 @@
     html {
       height: 100%;
       width: 100%;
-      overflow: hidden;
+      overflow: hidden;f
       -webkit-text-size-adjust: 100%;
     }
 
@@ -29,6 +29,35 @@
     /* Input Zoom Fix */
     input, select, textarea {
       font-size: 16px !important;
+    }
+
+    /* iOS Date Input Fix */
+    input[type="date"] {
+      -webkit-appearance: none; /* Removes native iOS bubble styling */
+      appearance: none;
+      display: block;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%; /* Prevents it from pushing outside the grid box */
+      box-sizing: border-box; /* Ensures padding doesn't add to width */
+
+      /* Force height to match the 'Account' select box next to it */
+      height: 42px;
+
+      /* Reset padding to ensure text is vertically centered */
+      padding-top: 8px;
+      padding-bottom: 8px;
+
+      /* Ensure background matches your theme (since we removed appearance) */
+      background-color: rgba(2, 6, 23, 0.7);
+      color: #e2e8f0;
+      border-radius: 1rem; /* Matches rounded-2xl */
+    }
+
+    /* Light mode override for the date input to ensure text is visible */
+    [data-theme="light"] input[type="date"] {
+      background-color: #ffffff;
+      color: #0f172a;
     }
 
     /* Main Scroll Container */
@@ -237,26 +266,32 @@
     .masked-amount { filter: blur(8px); user-select: none; }
     /* --- LIQUID GLASS NAV & SEARCH --- */
 
-    /* Sliding Glass Pill Indicator */
+    /* Sliding Glass Circle Indicator */
     .nav-indicator {
       position: absolute;
-      bottom: 0;
-      height: 100%;
-      border-radius: 9999px; /* Pill shape is typically handled by container or specific sizing, but here it's a backdrop */
-      /* Actually, the nav items are full height. The pill might be behind the icon/text or full tab?
-         "fills like glass water is moving form 1 menu to another" implies a background pill.
-         Let's make it a noticeable pill behind the icon/text. */
-      top: 50%;
-      transform: translateY(-50%);
+      /* 1. Make it slightly taller to cover Icon + Text */
+      width: 52px;
+      height: 52px;
+
+      /* 2. Make it a soft squircle */
+      border-radius: 14px;
+
+      top: auto;
+
+      /* 3. Move it UP significantly so it aligns with the icon/text */
+      /* This prevents it from falling off the bottom or overlapping the safe area */
+      bottom: 30px;
+
+      transform: translateX(0);
+
+      /* Keep your existing glass effects */
       background: rgba(56, 189, 248, 0.15); /* Sky blue tint */
       box-shadow: 0 0 15px rgba(56, 189, 248, 0.3), inset 0 0 5px rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(4px);
       border: 1px solid rgba(56, 189, 248, 0.2);
-      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth liquid-like easing */
-      z-index: -1;
+      transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); /* Smoother snap */
+      z-index: 0; /* Behind text (z-10) */
       pointer-events: none;
-      /* Default size - will be set by JS */
-      width: 0;
       left: 0;
       opacity: 0; /* Hidden initially until JS sets it */
     }
@@ -341,3 +376,64 @@
     [data-theme="light"] .data-btn-import { color: #059669; border-color: rgba(5, 150, 105, 0.3); background: rgba(5, 150, 105, 0.1); }
     [data-theme="light"] .data-btn-export { color: #0284c7; border-color: rgba(2, 132, 199, 0.3); background: rgba(2, 132, 199, 0.1); }
     [data-theme="light"] .data-btn-reset { color: #e11d48; border-color: rgba(225, 29, 72, 0.3); background: rgba(225, 29, 72, 0.1); }
+
+/* Tooltip Styles */
+.tooltip-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.info-icon {
+  margin-left: 4px;
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.6); /* slate-400/60 */
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.info-icon:hover {
+  color: #38bdf8; /* sky-400 */
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+
+.tooltip.visible {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(8px);
+}
+
+[data-theme="light"] .tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #1e293b;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

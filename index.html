@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
-  <title>FinTrack Pro - Expense Manager</title>
+  <title>Budget Pro - Expense Manager</title>
   
   <!-- iOS Web App Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="FinTrack Pro" />
+  <meta name="apple-mobile-web-app-title" content="Budget Pro" />
   <meta name="theme-color" content="#020617" id="metaThemeColor" />
   
   <!-- App Icon -->
@@ -33,7 +33,7 @@
   <!-- HEADER -->
   <header class="flex-none px-5 flex items-center justify-between z-10 w-full max-w-md mx-auto" style="padding-top: max(12px, var(--safe-top)); padding-bottom: 8px;">
     <div>
-      <h1 class="app-title text-xl font-bold tracking-tight">FinTrack Pro</h1>
+      <h1 class="app-title text-xl font-bold tracking-tight">Budget Pro</h1>
       <p class="text-xs uppercase tracking-[0.15em] text-slate-400 mt-0.5">Welcome back</p>
     </div>
     <button id="toggleMaskButton" class="relative h-10 w-10 rounded-full glass-soft flex items-center justify-center text-slate-100 border border-sky-400/40 shadow-lg transition-all active:scale-95">
@@ -60,7 +60,16 @@
         <div class="relative glass rounded-3xl p-4 pt-5 border border-slate-300/15">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <p class="text-[10px] uppercase tracking-[0.18em] text-slate-300/80 card-label">Net Worth</p>
+              <div class="flex items-center gap-2">
+                 <p class="text-[10px] uppercase tracking-[0.18em] text-slate-300/80 card-label">Net Worth</p>
+                 <div class="tooltip-container">
+                    <i id="netWorthInfoIcon" class="info-icon">ⓘ</i>
+                    <div id="netWorthTooltip" class="tooltip">
+                       Net Worth = Total Assets - Total Liabilities<br>
+                       <span class="text-[10px] text-slate-400">(Cash Flow excluded)</span>
+                    </div>
+                 </div>
+              </div>
               <p id="netWorthDisplay" class="text-3xl font-semibold mt-1 tracking-tight amount-display">₹0.00</p>
             </div>
             <div class="relative px-3 py-2 rounded-2xl glass-soft flex flex-col items-end gap-0.5 text-xs text-slate-100/90 border border-slate-100/20">
@@ -197,14 +206,14 @@
             <select id="categoryInput" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200"></select>
           </div>
 
-          <div id="regularAccountField" class="flex gap-3">
-            <div class="flex-1 min-w-0">
+          <div id="regularAccountField" class="grid grid-cols-2 gap-3">
+            <div class="min-w-0">
               <label class="text-xs text-slate-300 mb-1 block">Account</label>
               <select id="accountInput" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200"></select>
             </div>
-            <div class="flex-1 min-w-0">
+            <div class="min-w-0">
               <label class="text-xs text-slate-300 mb-1 block">Date</label>
-              <input id="dateInput" type="date" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200" />
+              <input id="dateInput" type="date" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200 min-w-0" />
             </div>
           </div>
           
@@ -352,7 +361,7 @@
     <button data-tab="home" class="tabButton flex flex-col items-center gap-0.5 text-sky-300 flex-1 relative z-10"><span class="text-xl">⌂</span> <span>Home</span></button>
     <button data-tab="logs" class="tabButton flex flex-col items-center gap-0.5 text-slate-400 flex-1 relative z-10"><span class="text-xl">☰</span> <span>Logs</span></button>
     <button data-tab="budget" class="tabButton flex flex-col items-center gap-0.5 text-slate-400 flex-1 relative z-10"><span class="text-xl">◎</span> <span>Budget</span></button>
-    <div class="relative -mt-6 flex-1 flex justify-center z-20">
+    <div class="relative -mt-1 flex-1 flex justify-center z-20">
       <button data-tab="add" class="tabButton relative neon-ring rounded-full h-14 w-14 flex items-center justify-center bg-slate-900 text-slate-100 border border-sky-400/70 shadow-xl shadow-sky-500/50">
         <span class="text-3xl leading-none mb-1">＋</span>
       </button>
@@ -466,14 +475,14 @@
           <label class="text-xs text-slate-300 mb-1 block">Category</label>
           <select id="editTxCategory" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200"></select>
         </div>
-        <div id="editTxRegularAccountField" class="flex gap-3">
-          <div class="flex-1 min-w-0">
+        <div id="editTxRegularAccountField" class="grid grid-cols-2 gap-3">
+          <div class="min-w-0">
              <label class="text-xs text-slate-300 mb-1 block">Account</label>
              <select id="editTxAccount" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200"></select>
           </div>
-          <div class="flex-1 min-w-0">
+          <div class="min-w-0">
              <label class="text-xs text-slate-300 mb-1 block">Date</label>
-             <input id="editTxDate" type="date" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200" />
+             <input id="editTxDate" type="date" class="w-full rounded-2xl bg-slate-950/70 border border-slate-700/80 px-3 py-2 text-xs outline-none text-slate-200 min-w-0" />
           </div>
         </div>
         <div id="editTxTransferFields" class="hidden space-y-3">

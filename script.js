@@ -66,27 +66,71 @@
       reminderPayments: {}
     };
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return structuredClone(initialState);
-        const parsed = JSON.parse(raw);
-        const merged = Object.assign(structuredClone(initialState), parsed);
-        for (const cat in merged.categories) if (typeof merged.categories[cat].budget === 'undefined') merged.categories[cat].budget = 0;
-        if (!merged.reminderPayments) merged.reminderPayments = {};
-        if (!merged.accountInitialBalances) merged.accountInitialBalances = {};
-        if (!merged.accountDueDays) merged.accountDueDays = {};
-        return merged;
-      } catch (e) {
-        return structuredClone(initialState);
+    // --- IndexedDB Storage Logic ---
+    const DB_NAME = 'FintrackDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'state';
+
+    const IDBStorage = {
+      dbPromise: null,
+
+      open() {
+        if (this.dbPromise) return this.dbPromise;
+        this.dbPromise = new Promise((resolve, reject) => {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+              db.createObjectStore(STORE_NAME);
+            }
+          };
+          request.onsuccess = (event) => resolve(event.target.result);
+          request.onerror = (event) => reject(event.target.error);
+        });
+        return this.dbPromise;
+      },
+
+      async save(data) {
+        try {
+          const db = await this.open();
+          return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            // Cloning data to avoid "DataCloneError" or side-effects if IDB implementation varies
+            // IDB uses structured clone, so passing the object directly is fine.
+            store.put(data, 'data');
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+          });
+        } catch (e) {
+          console.error("IDB Save Failed:", e);
+        }
+      },
+
+      async load() {
+        try {
+          const db = await this.open();
+          return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.get('data');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+          });
+        } catch (e) {
+          console.error("IDB Load Failed:", e);
+          return null;
+        }
       }
-    }
+    };
 
     function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      // Async save (fire and forget for UI responsiveness)
+      IDBStorage.save(state);
     }
 
-    let state = loadState();
+    // Initialize with defaults, will be populated by initApp
+    let state = structuredClone(initialState);
 
     const screenSections = document.querySelectorAll("[data-screen]");
     const tabButtons = document.querySelectorAll(".tabButton");
@@ -94,15 +138,23 @@
     function moveNavIndicator(activeBtn) {
        const nav = document.querySelector('nav');
        const indicator = document.getElementById('navIndicator');
-       if(!activeBtn || !indicator || activeBtn.dataset.tab === 'add') return;
+       // Added check to ensure we don't run this for the 'Add' button
+       if(!activeBtn || !indicator || activeBtn.dataset.tab === 'add') {
+          if(indicator) indicator.style.opacity = "0"; // Hide if on Add tab
+          return;
+       }
 
        const navRect = nav.getBoundingClientRect();
        const btnRect = activeBtn.getBoundingClientRect();
 
-       const left = btnRect.left - navRect.left;
-       const width = btnRect.width;
+       // Calculate center of the active button relative to the nav
+       const centerX = (btnRect.left - navRect.left) + (btnRect.width / 2);
+       // Matched size to CSS (50px)
+       const indicatorSize = 50;
+       const left = centerX - (indicatorSize / 2);
 
-       indicator.style.width = `${width}px`;
+       // FIX: Changed `translate(${left}px, -50%)` to `translateX(${left}px)`
+       // This prevents JS from lifting the bubble up, letting CSS handle the height.
        indicator.style.transform = `translateX(${left}px)`;
        indicator.style.opacity = "1";
     }
@@ -207,12 +259,8 @@
          csv += `${tx.date},${tx.type},${tx.amount},${tx.category || ''},${tx.account || ''},"${(tx.note||'').replace(/"/g, '""')}"\n`;
        });
 
-       const blob = new Blob([csv], { type: 'text/csv' });
-       const url = window.URL.createObjectURL(blob);
-       const a = document.createElement('a');
-       a.href = url;
-       a.download = `FinTrack_${monthKey}.csv`;
-       a.click();
+       // USE NEW HELPER
+       shareOrDownloadCSV(`FinTrack_${monthKey}.csv`, csv);
     };
 
     // NEW: Main Export CSV Logic for Logs Screen
@@ -223,12 +271,8 @@
          csv += `${tx.date},${tx.type},${tx.amount},${tx.category || ''},${tx.account || ''},"${(tx.note||'').replace(/"/g, '""')}"\n`;
        });
 
-       const blob = new Blob([csv], { type: 'text/csv' });
-       const url = window.URL.createObjectURL(blob);
-       const a = document.createElement('a');
-       a.href = url;
-       a.download = `FinTrack_All_Logs.csv`;
-       a.click();
+       // USE NEW HELPER
+       shareOrDownloadCSV(`FinTrack_All_Logs.csv`, csv);
     };
 
     function renderArchive() {
@@ -390,13 +434,41 @@
       document.getElementById("monthlySpentDisplay").textContent = currency(monthlySpent);
 
       let netWorth = 0;
+      let totalAssets = 0;
+      let totalLiabilities = 0;
+
       for (const acc in state.accounts) {
         const type = state.accountTypes[acc];
         const balance = state.accounts[acc];
-        if (type === "credit") netWorth -= balance;
-        else netWorth += balance;
+
+        if (type === "credit") {
+             // Credit card balance is a liability
+             netWorth -= balance;
+             totalLiabilities += balance;
+        } else {
+             // Bank/Cash/Investment
+             // If positive, it's an asset. If negative (overdraft), it's a liability?
+             // For simplicity, let's treat negative bank balance as liability.
+             netWorth += balance;
+             if (balance >= 0) {
+                 totalAssets += balance;
+             } else {
+                 totalLiabilities += Math.abs(balance);
+             }
+        }
       }
       document.getElementById("netWorthDisplay").textContent = currency(netWorth);
+
+      // Update Net Worth Tooltip with dynamic breakdown
+      const tooltip = document.getElementById("netWorthTooltip");
+      if (tooltip) {
+          tooltip.innerHTML = `
+            Assets: <span class="text-emerald-300">${currency(totalAssets)}</span><br>
+            Liabilities: <span class="text-rose-300">-${currency(totalLiabilities)}</span><br>
+            <div class="h-px bg-slate-700 my-1"></div>
+            Net Worth: <span class="font-semibold">${currency(netWorth)}</span>
+          `;
+      }
 
       const burnRatio = state.budgetMonthly ? Math.min(1, monthlySpent / state.budgetMonthly) : 0;
       const burnBar = document.getElementById("burnRateBar");
@@ -583,6 +655,14 @@
       applyMasking();
     }
 
+    function calculateAllocatedExpenses(excludeName = null) {
+      return Object.entries(state.categories).reduce((sum, [name, data]) => {
+        if (name === excludeName) return sum;
+        if (data.type === 'expense') return sum + (data.budget || 0);
+        return sum;
+      }, 0);
+    }
+
     function renderCategoryBudgets() {
        const list = document.getElementById("categoryBudgetsList");
        list.innerHTML = "";
@@ -612,7 +692,7 @@
              <span class="text-xs font-medium text-slate-200 truncate">${cat}</span>
            </div>
            <div class="flex items-center gap-3">
-             <input type="number" placeholder="Budget" class="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-slate-200" value="${data.budget}" onchange="updateCatBudget('${cat}', this.value)" />
+             <input type="number" placeholder="Budget" class="w-20 bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-slate-200" value="${data.budget}" onchange="updateCatBudget('${cat}', this)" />
              <div class="actions">
                <button onclick="openCategoryModal('${cat}')" class="text-xs">✏️</button>
                <button onclick="deleteCategory('${cat}')" class="text-xs delete-btn">🗑️</button>
@@ -622,9 +702,29 @@
          list.appendChild(row);
        });
     }
-    window.updateCatBudget = (cat, val) => {
-       if(state.categories[cat]) {
-          state.categories[cat].budget = parseFloat(val) || 0;
+
+    window.updateCatBudget = (cat, inputEl) => {
+       const val = parseFloat(inputEl.value) || 0;
+       const data = state.categories[cat];
+
+       if(data) {
+          // Validation for Expenses
+          if (data.type === 'expense') {
+              if (val < 0) {
+                  inputEl.value = data.budget;
+                  return;
+              }
+              const currentAllocated = calculateAllocatedExpenses(cat);
+              const remaining = state.budgetMonthly - currentAllocated;
+
+              if (val > remaining) {
+                  alert(`⚠️ Budget Exceeded\n\nCannot allocate ₹${val} to '${cat}'.\nMaximum available: ₹${Math.max(0, remaining)}`);
+                  inputEl.value = data.budget; // Revert
+                  return;
+              }
+          }
+
+          state.categories[cat].budget = val;
           saveState();
           renderBudget();
        }
@@ -662,6 +762,16 @@
        const budget = parseFloat(document.getElementById("categoryBudgetInput").value) || 0;
 
        if(!newName) return;
+
+       // Validation: Check total budget (Only for Expenses)
+       if (type === 'expense') {
+           const currentAllocated = calculateAllocatedExpenses(oldName);
+           const remaining = state.budgetMonthly - currentAllocated;
+
+           if (budget > remaining) {
+              return alert(`⚠️ Budget Exceeded\n\nCannot allocate ₹${budget} to '${newName}'.\nMaximum available: ₹${Math.max(0, remaining)}`);
+           }
+       }
 
        if(oldName && newName !== oldName) {
           // Rename: Check if exists
@@ -1062,8 +1172,18 @@
     // Data Management: Reset
     const resetBtn = document.getElementById("resetDataBtn");
     if(resetBtn) {
-        resetBtn.onclick = () => {
+        resetBtn.onclick = async () => {
           if(confirm("Are you sure? All data will be wiped.")) {
+            // Clear IDB
+            try {
+                const db = await IDBStorage.open();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.clear();
+                await new Promise(r => { tx.oncomplete = r; tx.onerror = r; });
+            } catch(e) { console.error(e); }
+
+            // Clear LocalStorage just in case
             localStorage.removeItem(STORAGE_KEY);
             location.reload();
           }
@@ -1073,14 +1193,26 @@
     // Data Management: Export JSON
     const exportBtn = document.getElementById("exportDataBtn");
     if(exportBtn) {
-       exportBtn.onclick = () => {
+       exportBtn.onclick = async () => {
            const dataStr = JSON.stringify(state, null, 2);
-           const blob = new Blob([dataStr], { type: "application/json" });
-           const url = URL.createObjectURL(blob);
-           const a = document.createElement('a');
-           a.href = url;
-           a.download = `FinTrack_Backup_${new Date().toISOString().slice(0,10)}.json`;
-           a.click();
+           const filename = `FinTrack_Backup_${new Date().toISOString().slice(0,10)}.json`;
+
+           // Create file for sharing
+           const file = new File([dataStr], filename, { type: "application/json" });
+
+           if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              try {
+                 await navigator.share({ files: [file], title: 'FinTrack Backup' });
+              } catch (e) { console.log("Share cancelled"); }
+           } else {
+              // Fallback
+              const blob = new Blob([dataStr], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              a.click();
+           }
        };
     }
 
@@ -1101,8 +1233,14 @@
                  if (!imported.transactions || !imported.accounts || !imported.categories) throw new Error("Invalid format");
 
                  if(confirm("This will overwrite your current data. Continue?")) {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
-                    location.reload();
+                    // Update state synchronously for immediate feedback if needed, but primarily save to IDB
+                    state = imported; // Update in-memory to be safe before reload, though reload clears it.
+
+                    // We must wait for save before reloading
+                    IDBStorage.save(imported).then(() => {
+                        localStorage.removeItem(STORAGE_KEY); // Ensure no conflict
+                        location.reload();
+                    });
                  }
               } catch(err) {
                  alert("Failed to import data: " + err.message);
@@ -1142,6 +1280,91 @@
 
     updateCategoryDropdown("expense");
     updateFormForType("expense");
-    recalcAccounts();
-    renderAll();
+    // Initial UI render with empty state to prevent FOUC
     showScreen("home");
+
+    async function initApp() {
+        // 1. Try Load from IDB
+        const loaded = await IDBStorage.load();
+
+        if (loaded) {
+            state = loaded;
+        } else {
+            // 2. Migration: Check localStorage
+            const localRaw = localStorage.getItem(STORAGE_KEY);
+            if (localRaw) {
+                try {
+                    const parsed = JSON.parse(localRaw);
+                    state = Object.assign(structuredClone(initialState), parsed);
+                    // Ensure deep structures exist
+                    for (const cat in state.categories) if (typeof state.categories[cat].budget === 'undefined') state.categories[cat].budget = 0;
+                    if (!state.reminderPayments) state.reminderPayments = {};
+                    if (!state.accountInitialBalances) state.accountInitialBalances = {};
+                    if (!state.accountDueDays) state.accountDueDays = {};
+
+                    // Save to IDB immediately
+                    await IDBStorage.save(state);
+                    // Clear localStorage to complete migration
+                    localStorage.removeItem(STORAGE_KEY);
+                    console.log("Migrated data from LocalStorage to IndexedDB.");
+                } catch (e) {
+                    console.error("Migration failed:", e);
+                }
+            }
+        }
+
+        // 3. Re-render with loaded data
+        recalcAccounts();
+        renderAll();
+    }
+
+    initApp();
+
+    // Net Worth Tooltip Logic
+    const netWorthTooltip = document.getElementById("netWorthTooltip");
+    const netWorthInfoIcon = document.getElementById("netWorthInfoIcon");
+
+    if (netWorthInfoIcon && netWorthTooltip) {
+       netWorthInfoIcon.addEventListener("click", (e) => {
+          e.stopPropagation();
+          netWorthTooltip.classList.toggle("visible");
+       });
+
+       document.addEventListener("click", (e) => {
+          if (!netWorthTooltip.contains(e.target) && e.target !== netWorthInfoIcon) {
+             netWorthTooltip.classList.remove("visible");
+          }
+       });
+    }
+
+    /* Helper: Use Native Share for iOS to prevent browser bars appearing */
+    async function shareOrDownloadCSV(filename, csvContent) {
+      const file = new File([csvContent], filename, { type: "text/csv" });
+
+      // 1. Try Native iOS/Android Share Sheet first
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'FinTrack Export',
+            text: 'Here is your transaction data.'
+          });
+          return; // Success! No browser bars.
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error(err);
+          // If user cancelled, do nothing. If error, fall through to download.
+          return;
+        }
+      }
+
+      // 2. Desktop Fallback (Original Logic)
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a); // Required for Firefox/some browsers
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
