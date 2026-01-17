@@ -130,6 +130,63 @@ function saveState() {
   syncWidgetData();
 }
 
+// Native Haptic Feedback Bridge
+// Types: success, warning, error, light, medium, heavy, selection
+function triggerHaptic(type = 'medium') {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.hapticBridge) {
+    window.webkit.messageHandlers.hapticBridge.postMessage(type);
+  }
+}
+
+// Native Notification Bridge
+// Schedule a local notification at a specific date/time
+function scheduleNotification(id, title, body, date) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.notificationBridge) {
+    const payload = {
+      action: 'schedule',
+      id: id,
+      title: title,
+      body: body,
+      date: date.toISOString() // Convert Date object to ISO string
+    };
+    window.webkit.messageHandlers.notificationBridge.postMessage(JSON.stringify(payload));
+  }
+}
+
+// Cancel a specific notification by ID
+function cancelNotification(id) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.notificationBridge) {
+    window.webkit.messageHandlers.notificationBridge.postMessage(JSON.stringify({ action: 'cancel', id: id }));
+  }
+}
+
+// Schedule notifications for recurring bills due within 7 days
+function scheduleBillReminders() {
+  if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.notificationBridge) return;
+
+  const today = new Date();
+  const sevenDaysLater = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  state.transactions.filter(tx => tx.isRecurring && tx.dueDay).forEach(tx => {
+    // Calculate next due date
+    const dueDay = tx.dueDay;
+    let dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay, 10, 0, 0); // 10 AM on due day
+
+    // If due day has passed this month, check if it's within reminder range anyway
+    if (dueDate < today) {
+      dueDate.setMonth(dueDate.getMonth() + 1); // Next month
+    }
+
+    // Only schedule if due within 7 days
+    if (dueDate <= sevenDaysLater) {
+      const notifId = `bill_${tx.id}`;
+      const title = `💳 Bill Due: ${tx.category}`;
+      const body = `${tx.note || tx.category} - ₹${tx.amount.toLocaleString()}`;
+      scheduleNotification(notifId, title, body, dueDate);
+    }
+  });
+}
+
 function syncWidgetData() {
   try {
     // Use same cycle logic as Home Screen
@@ -975,6 +1032,7 @@ entryForm.addEventListener("submit", (e) => {
   }
   state.transactions.unshift(tx);
   recalcAccounts(); saveState(); renderAll();
+  triggerHaptic('success'); // Haptic feedback on save
   clearEntryForm();
   showScreen("home");
 });
@@ -1324,7 +1382,7 @@ if (archiveHeader) {
 const editBudgetModal = document.getElementById("editBudgetModal");
 document.getElementById("editBudgetBtn").onclick = () => { document.getElementById("budgetAmountInput").value = state.budgetMonthly; editBudgetModal.classList.remove("hidden"); };
 document.getElementById("cancelEditBudget").onclick = () => editBudgetModal.classList.add("hidden");
-document.getElementById("editBudgetForm").onsubmit = (e) => { e.preventDefault(); state.budgetMonthly = parseFloat(document.getElementById("budgetAmountInput").value) || 0; saveState(); renderAll(); editBudgetModal.classList.add("hidden"); };
+document.getElementById("editBudgetForm").onsubmit = (e) => { e.preventDefault(); state.budgetMonthly = parseFloat(document.getElementById("budgetAmountInput").value) || 0; saveState(); renderAll(); triggerHaptic('success'); editBudgetModal.classList.add("hidden"); };
 
 const deleteModal = document.getElementById("deleteConfirmModal");
 window.openDeleteModal = (id, type) => { document.getElementById("deleteItemId").value = id; document.getElementById("deleteItemType").value = type; deleteModal.classList.remove("hidden"); };
@@ -1334,7 +1392,7 @@ document.getElementById("confirmDelete").onclick = () => {
   const type = document.getElementById("deleteItemType").value;
   if (type === 'transaction') state.transactions = state.transactions.filter(t => t.id !== id);
   else if (type === 'account') { delete state.accounts[id]; delete state.accountTypes[id]; delete state.accountInitialBalances[id]; }
-  recalcAccounts(); saveState(); renderAll(); deleteModal.classList.add("hidden");
+  recalcAccounts(); saveState(); renderAll(); triggerHaptic('warning'); deleteModal.classList.add("hidden");
 };
 
 updateCategoryDropdown("expense");
@@ -1387,7 +1445,8 @@ async function initApp() {
   // FORCE WIDGET SYNC ON LOAD
   setTimeout(() => {
     syncWidgetData();
-    console.log("Initial Widget Sync Triggered");
+    scheduleBillReminders(); // Schedule notifications for bills due within 7 days
+    console.log("Initial Widget Sync + Bill Reminders Triggered");
   }, 1000);
 }
 

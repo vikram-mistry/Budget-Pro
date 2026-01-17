@@ -76,97 +76,151 @@ struct BudgetWidgetEntryView : View {
     var safeBudget: Double { entry.data.budget ?? 0 }
     var safeMonth: String { entry.data.month ?? "" }
 
+    // Define colors that work in both modes
+    var buttonGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(red: 14/255, green: 165/255, blue: 233/255),  // sky-500 (darker)
+                Color(red: 16/255, green: 185/255, blue: 129/255)   // emerald-500 (darker)
+            ]),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+    
     var body: some View {
         ZStack {
-            // Background
-            if family == .systemMedium {
-                ZStack {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "indianrupeesign.circle.fill")
-                                .font(.system(size: 90))
-                                .foregroundColor(Color(red: 255/255, green: 255/255, blue: 255/255).opacity(0.03))
-                                .rotationEffect(.degrees(15))
-                                .offset(x: 20, y: -20)
-                        }
+            // Background Graphics (BOTH widgets)
+            ZStack {
+                // Top Right Rupee Coin
+                VStack {
+                    HStack {
                         Spacer()
+                        Image(systemName: "indianrupeesign.circle.fill")
+                            .font(.system(size: family == .systemSmall ? 50 : 90))
+                            .foregroundColor(colorScheme == .dark 
+                                ? Color.white.opacity(0.08) 
+                                : Color(red: 30/255, green: 64/255, blue: 175/255).opacity(0.15)) // Blue tint for light
+                            .rotationEffect(.degrees(15))
+                            .offset(x: family == .systemSmall ? 10 : 20, y: family == .systemSmall ? -10 : -20)
                     }
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Image(systemName: "bitcoinsign.circle.fill")
-                                .font(.system(size: 60))
-                                .foregroundColor(Color(red: 255/255, green: 255/255, blue: 255/255).opacity(0.02))
-                                .rotationEffect(.degrees(-15))
-                                .offset(x: -20, y: 20)
+                    Spacer()
+                }
+                // Bottom Coin - Left for small, Center for medium
+                VStack {
+                    Spacer()
+                    HStack {
+                        if family == .systemMedium {
+                            Spacer()
+                        }
+                        Image(systemName: "bitcoinsign.circle.fill")
+                            .font(.system(size: family == .systemSmall ? 35 : 60))
+                            .foregroundColor(colorScheme == .dark 
+                                ? Color.white.opacity(0.06) 
+                                : Color(red: 30/255, green: 64/255, blue: 175/255).opacity(0.10))
+                            .rotationEffect(.degrees(-15))
+                            .offset(x: family == .systemSmall ? -10 : 0, y: family == .systemSmall ? 10 : 20)
+                        if family == .systemMedium {
+                            Spacer()
+                        } else {
                             Spacer()
                         }
                     }
                 }
             }
             
+            // Main Content
             VStack(alignment: .leading, spacing: 0) {
-                // Header
+                // Header with shadow for light mode
                 HStack {
                     Text("Budget Pro")
-                        .font(.system(size: 16, weight: .black, design: .rounded))
+                        .font(.system(size: family == .systemSmall ? 15 : 18, weight: .black, design: .rounded))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [
-                                    Color(red: 56/255, green: 189/255, blue: 248/255), // Sky-400
-                                    Color(red: 52/255, green: 211/255, blue: 153/255)  // Emerald-400
-                                ],
+                                colors: colorScheme == .dark 
+                                    ? [Color(red: 56/255, green: 189/255, blue: 248/255), Color(red: 52/255, green: 211/255, blue: 153/255)]
+                                    : [Color(red: 2/255, green: 132/255, blue: 199/255), Color(red: 5/255, green: 150/255, blue: 105/255)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.1), radius: 1, x: 0, y: 1)
                     Spacer()
                 }
-                .padding(.bottom, family == .systemSmall ? 0 : 8)
+                .padding(.bottom, family == .systemSmall ? 8 : 10)
                 
+                // Content Row
                 HStack(alignment: .center, spacing: 10) {
-                    // Chart
+                    // Dual Ring Chart - BIGGER for small widget
                     ZStack {
+                        // Background Ring
                         Circle()
-                            .stroke(Color.white.opacity(0.08), lineWidth: family == .systemSmall ? 12 : 8)
+                            .stroke(colorScheme == .dark 
+                                ? Color.white.opacity(0.08) 
+                                : Color(red: 100/255, green: 116/255, blue: 139/255).opacity(0.3),
+                                lineWidth: family == .systemSmall ? 8 : 8)
                         
-                        // Progress Logic
+                        // Expense Ring (Red) - Outer
                         Circle()
                             .trim(from: 0, to: safeBudget > 0 ? CGFloat(min(1.0, safeExpense / safeBudget)) : 0.001)
                             .stroke(
                                 LinearGradient(gradient: Gradient(colors: [
-                                    Color(red: 239/255, green: 68/255, blue: 68/255), // Red-500
-                                    Color(red: 248/255, green: 113/255, blue: 113/255) // Red-400
+                                    Color(red: 220/255, green: 38/255, blue: 38/255),
+                                    Color(red: 239/255, green: 68/255, blue: 68/255)
                                 ]), startPoint: .top, endPoint: .bottom),
-                                style: StrokeStyle(lineWidth: family == .systemSmall ? 12 : 8, lineCap: .round)
+                                style: StrokeStyle(lineWidth: family == .systemSmall ? 8 : 8, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
+                            .shadow(color: colorScheme == .dark ? .clear : Color.red.opacity(0.3), radius: 2)
+                        
+                        // Income Ring (Green) - Inner
+                        Circle()
+                            .trim(from: 0, to: safeBudget > 0 ? CGFloat(min(1.0, safeIncome / safeBudget)) : 0.001)
+                            .stroke(
+                                LinearGradient(gradient: Gradient(colors: [
+                                    Color(red: 5/255, green: 150/255, blue: 105/255),
+                                    Color(red: 16/255, green: 185/255, blue: 129/255)
+                                ]), startPoint: .top, endPoint: .bottom),
+                                style: StrokeStyle(lineWidth: family == .systemSmall ? 5 : 5, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .padding(family == .systemSmall ? 6 : 7)
                     }
-                    .frame(width: family == .systemSmall ? 60 : 60, height: family == .systemSmall ? 60 : 60)
+                    .frame(width: family == .systemSmall ? 60 : 65, height: family == .systemSmall ? 60 : 65)
                     
-                    // Stats
+                    // Stats (Medium only)
                     if family == .systemMedium {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Total Expense")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.gray)
+                                .foregroundColor(colorScheme == .dark 
+                                    ? Color.gray 
+                                    : Color(red: 71/255, green: 85/255, blue: 105/255))
                                 .fixedSize(horizontal: false, vertical: true)
                             
                             Text("₹\(Int(safeExpense))")
                                 .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(colorScheme == .dark 
+                                    ? .white 
+                                    : Color(red: 15/255, green: 23/255, blue: 42/255))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
+                                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.1), radius: 1)
                             
                             if !safeMonth.isEmpty {
                                 Text(safeMonth)
                                     .font(.system(size: 9, weight: .semibold))
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
-                                    .background(Color.white.opacity(0.08))
+                                    .background(colorScheme == .dark 
+                                        ? Color.white.opacity(0.08) 
+                                        : Color(red: 51/255, green: 65/255, blue: 85/255).opacity(0.15))
                                     .cornerRadius(4)
-                                    .foregroundColor(Color(red: 148/255, green: 163/255, blue: 184/255))
+                                    .foregroundColor(colorScheme == .dark 
+                                        ? Color(red: 148/255, green: 163/255, blue: 184/255) 
+                                        : Color(red: 51/255, green: 65/255, blue: 85/255))
                             }
                         }
                     }
@@ -175,42 +229,83 @@ struct BudgetWidgetEntryView : View {
                 
                 Spacer()
                 
-                // Add Button
-                Link(destination: URL(string: "budgetpro://add")!) {
-                    ZStack {
-                        Capsule()
-                            .fill(LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 56/255, green: 189/255, blue: 248/255),
-                                    Color(red: 52/255, green: 211/255, blue: 153/255)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ))
-                            .frame(height: 38)
+                // Bottom Row: Budget Left (center) + Add Button (right)
+                HStack(alignment: .bottom) {
+                    // Budget Left - Multi-line format (Medium only)
+                    if family == .systemMedium {
+                        let remaining = max(0, safeBudget - safeExpense)
+                        let isOverBudget = safeExpense > safeBudget
                         
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .heavy))
-                            Text("Add Expense")
-                                .font(.system(size: 13, weight: .bold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Budget Left")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(colorScheme == .dark 
+                                    ? Color(red: 148/255, green: 163/255, blue: 184/255)
+                                    : Color(red: 100/255, green: 116/255, blue: 139/255))
+                            
+                            Text("₹\(Int(remaining))")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(isOverBudget 
+                                    ? Color(red: 239/255, green: 68/255, blue: 68/255)
+                                    : (colorScheme == .dark 
+                                        ? Color(red: 52/255, green: 211/255, blue: 153/255)
+                                        : Color(red: 5/255, green: 150/255, blue: 105/255)))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            
+                            if safeBudget > 0 {
+                                let percentage = min(100, Int((safeExpense / safeBudget) * 100))
+                                Text("\(percentage)% used")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(colorScheme == .dark 
+                                        ? Color(red: 100/255, green: 116/255, blue: 139/255)
+                                        : Color(red: 71/255, green: 85/255, blue: 105/255))
+                            }
                         }
-                        .foregroundStyle(Color.black)
-                        .environment(\.colorScheme, .light)
+                    }
+                    
+                    Spacer()
+                    
+                    // Add Button - BIGGER for small widget
+                    Link(destination: URL(string: "budgetpro://add")!) {
+                        VStack(spacing: 2) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: family == .systemSmall ? 48 : 38, weight: .medium))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(Color(red: 14/255, green: 165/255, blue: 233/255))
+                            
+                            if family == .systemMedium {
+                                Text("Add")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(colorScheme == .dark 
+                                        ? Color(red: 148/255, green: 163/255, blue: 184/255)
+                                        : Color(red: 71/255, green: 85/255, blue: 105/255))
+                            }
+                        }
+                        .widgetAccentable()
                     }
                 }
             }
         }
-        .padding(14)
+        .padding(family == .systemSmall ? 12 : 14)
         .containerBackground(for: .widget) {
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 2/255, green: 6/255, blue: 23/255),
-                    Color(red: 15/255, green: 23/255, blue: 42/255)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Note: In iOS 26 Clear mode, this may be overridden by system glass effect
+            // We use colors that work well even when blended
+            Group {
+                if colorScheme == .dark {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 2/255, green: 6/255, blue: 23/255),
+                            Color(red: 15/255, green: 23/255, blue: 42/255)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                } else {
+                    // Solid light background that works with glass overlay
+                    Color(red: 248/255, green: 250/255, blue: 252/255).opacity(0.9) // slate-50
+                }
+            }
         }
         .widgetURL(URL(string: "budgetpro://add"))
     }
