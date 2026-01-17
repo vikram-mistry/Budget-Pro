@@ -56,5 +56,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Budget Pro uses Face ID to protect your financial data</string>
 </dict>
 </plist>

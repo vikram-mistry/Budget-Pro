@@ -3,6 +3,7 @@ import Capacitor
 import WebKit
 import WidgetKit
 import UserNotifications
+import LocalAuthentication
 
 class ViewController: CAPBridgeViewController, WKScriptMessageHandler {
     
@@ -10,6 +11,9 @@ class ViewController: CAPBridgeViewController, WKScriptMessageHandler {
     private let notificationGenerator = UINotificationFeedbackGenerator()
     private let impactGenerator = UIImpactFeedbackGenerator(style: .medium)
     private let selectionGenerator = UISelectionFeedbackGenerator()
+    
+    // Biometric Context
+    private let authContext = LAContext()
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -19,6 +23,7 @@ class ViewController: CAPBridgeViewController, WKScriptMessageHandler {
         self.webView?.configuration.userContentController.add(self, name: "widgetBridge")
         self.webView?.configuration.userContentController.add(self, name: "hapticBridge")
         self.webView?.configuration.userContentController.add(self, name: "notificationBridge")
+        self.webView?.configuration.userContentController.add(self, name: "biometricBridge")
         
         // Pre-warm haptic engine
         notificationGenerator.prepare()
@@ -54,6 +59,12 @@ class ViewController: CAPBridgeViewController, WKScriptMessageHandler {
         if message.name == "notificationBridge", let jsonString = message.body as? String {
             print("🔔 NOTIFICATION REQUEST: \(jsonString)")
             handleNotificationRequest(jsonString: jsonString)
+        }
+        
+        // BIOMETRIC BRIDGE
+        if message.name == "biometricBridge", let command = message.body as? String {
+            print("🔐 BIOMETRIC: \(command)")
+            handleBiometricRequest(command: command)
         }
     }
     
@@ -128,6 +139,77 @@ class ViewController: CAPBridgeViewController, WKScriptMessageHandler {
                 print("❌ Notification schedule failed: \(error.localizedDescription)")
             } else {
                 print("✅ Notification scheduled: \(payload.id) at \(payload.date)")
+            }
+        }
+    }
+    
+    // MARK: - Biometric Authentication
+    private func handleBiometricRequest(command: String) {
+        switch command {
+        case "check":
+            checkBiometricAvailability()
+        case "authenticate":
+            authenticateWithBiometrics()
+        default:
+            print("⚠️ Unknown biometric command: \(command)")
+            sendBiometricResult(success: false, message: "Unknown command", type: "error")
+        }
+    }
+    
+    private func checkBiometricAvailability() {
+        let context = LAContext()
+        var error: NSError?
+        
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            // Biometrics available
+            let biometricType = context.biometryType == .faceID ? "faceID" : "touchID"
+            print("✅ Biometric available: \(biometricType)")
+            sendBiometricResult(success: true, message: biometricType, type: "check")
+        } else {
+            // No biometrics
+            let errorMessage = error?.localizedDescription ?? "Biometrics not available"
+            print("❌ Biometric not available: \(errorMessage)")
+            sendBiometricResult(success: false, message: "notAvailable", type: "check")
+        }
+    }
+    
+    private func authenticateWithBiometrics() {
+        let context = LAContext()
+        context.localizedFallbackTitle = "Use Passcode"
+        
+        let reason = "Unlock Budget Pro to view your financial data"
+        
+        context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    print("✅ Authentication successful")
+                    self.sendBiometricResult(success: true, message: "authenticated", type: "authenticate")
+                } else {
+                    let errorMessage = error?.localizedDescription ?? "Authentication failed"
+                    print("❌ Authentication failed: \(errorMessage)")
+                    
+                    // Check if user cancelled
+                    if let laError = error as? LAError {
+                        if laError.code == .userCancel {
+                            self.sendBiometricResult(success: false, message: "cancelled", type: "authenticate")
+                            return
+                        }
+                    }
+                    self.sendBiometricResult(success: false, message: "failed", type: "authenticate")
+                }
+            }
+        }
+    }
+    
+    private func sendBiometricResult(success: Bool, message: String, type: String) {
+        let resultJson = "{\"success\": \(success), \"message\": \"\(message)\", \"type\": \"\(type)\"}"
+        let js = "window.handleBiometricResult && window.handleBiometricResult(\(resultJson))"
+        
+        DispatchQueue.main.async {
+            self.webView?.evaluateJavaScript(js) { _, error in
+                if let error = error {
+                    print("❌ JS callback error: \(error.localizedDescription)")
+                }
             }
         }
     }

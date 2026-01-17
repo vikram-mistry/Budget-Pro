@@ -34,6 +34,31 @@
     <div class="absolute -bottom-32 -left-10 h-72 w-72 rounded-full bg-emerald-400/25 blur-3xl"></div>
   </div>
 
+  <!-- LOCK SCREEN OVERLAY -->
+  <div id="lockScreen" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center"
+    style="background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);">
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+      <div class="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl"></div>
+      <div class="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-400/15 blur-3xl"></div>
+    </div>
+    <div class="relative z-10 flex flex-col items-center text-center px-8">
+      <div
+        class="w-20 h-20 rounded-3xl bg-gradient-to-br from-sky-500 to-emerald-400 flex items-center justify-center mb-6 shadow-xl">
+        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-white mb-2">Budget Pro</h2>
+      <p class="text-slate-400 text-sm mb-8">Authenticate to access your financial data</p>
+      <button id="unlockBtn"
+        class="px-6 py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-emerald-400 text-white font-semibold text-sm shadow-lg active:scale-95 transition-transform">
+        <span id="unlockBtnText">Unlock with Face ID</span>
+      </button>
+      <p id="lockScreenError" class="hidden text-red-400 text-xs mt-4">Authentication failed. Try again.</p>
+    </div>
+  </div>
+
   <!-- HEADER -->
   <header class="flex-none px-5 flex items-center justify-between z-10 w-full max-w-md mx-auto"
     style="padding-top: max(12px, var(--safe-top)); padding-bottom: 8px;">
@@ -355,6 +380,33 @@
             <span id="themeToggleKnob"
               class="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-gradient-to-r from-slate-600 to-slate-700 shadow-md transition-all duration-300 flex items-center justify-center text-xs">🌙</span>
           </button>
+        </div>
+
+        <!-- Security Section -->
+        <div id="securitySection" class="glass rounded-3xl p-3 space-y-3">
+          <p class="text-sm font-medium">Security</p>
+          <div class="flex items-center justify-between">
+            <div>
+              <p id="biometricLabel" class="text-xs text-slate-300">Face ID Lock</p>
+              <p id="biometricStatus" class="text-[10px] text-slate-400">Require authentication on open</p>
+            </div>
+            <button id="faceIdToggleBtn"
+              class="relative w-12 h-6 rounded-full bg-slate-800 border border-slate-600/70 transition-all duration-300">
+              <span id="faceIdToggleKnob"
+                class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-slate-600 shadow-md transition-all duration-300"></span>
+            </button>
+          </div>
+          <div id="widgetPrivacyRow" class="hidden flex items-center justify-between pt-2 border-t border-slate-700/50">
+            <div>
+              <p class="text-xs text-slate-300">Hide Widget Data</p>
+              <p class="text-[10px] text-slate-400">Show •••• instead of amounts</p>
+            </div>
+            <button id="widgetPrivacyToggleBtn"
+              class="relative w-12 h-6 rounded-full bg-slate-800 border border-slate-600/70 transition-all duration-300">
+              <span id="widgetPrivacyToggleKnob"
+                class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-slate-600 shadow-md transition-all duration-300"></span>
+            </button>
+          </div>
         </div>
         <div class="glass rounded-3xl p-3">
           <label class="text-xs text-slate-300 mb-2 block">Month Start Date</label>

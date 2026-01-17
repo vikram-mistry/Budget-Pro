@@ -14,15 +14,16 @@ struct BudgetData: Codable {
     let income: Double?
     let budget: Double?
     let month: String?
+    let hideData: Bool?  // Privacy mode: hide actual amounts
 }
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), data: BudgetData(expense: 15000, income: 45000, budget: 50000, month: "Jan"))
+        SimpleEntry(date: Date(), data: BudgetData(expense: 15000, income: 45000, budget: 50000, month: "Jan", hideData: false))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let entry = SimpleEntry(date: Date(), data: BudgetData(expense: 12450, income: 60000, budget: 30000, month: "Jan"))
+        let entry = SimpleEntry(date: Date(), data: BudgetData(expense: 12450, income: 60000, budget: 30000, month: "Jan", hideData: false))
         completion(entry)
     }
 
@@ -33,7 +34,7 @@ struct Provider: TimelineProvider {
         let jsonString = userDefaults?.string(forKey: "widgetData")
         
         // Default safe values
-        var budgetData = BudgetData(expense: 0, income: 0, budget: 0, month: "")
+        var budgetData = BudgetData(expense: 0, income: 0, budget: 0, month: "", hideData: false)
         
         if let json = jsonString {
             // Debug: Print raw JSON to console (visible in Console.app)
@@ -75,6 +76,7 @@ struct BudgetWidgetEntryView : View {
     var safeIncome: Double { entry.data.income ?? 0 }
     var safeBudget: Double { entry.data.budget ?? 0 }
     var safeMonth: String { entry.data.month ?? "" }
+    var isPrivacyMode: Bool { entry.data.hideData ?? false }
 
     // Define colors that work in both modes
     var buttonGradient: LinearGradient {
@@ -200,7 +202,7 @@ struct BudgetWidgetEntryView : View {
                                     : Color(red: 71/255, green: 85/255, blue: 105/255))
                                 .fixedSize(horizontal: false, vertical: true)
                             
-                            Text("₹\(Int(safeExpense))")
+                            Text(isPrivacyMode ? "••••" : "₹\(Int(safeExpense))")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(colorScheme == .dark 
                                     ? .white 
@@ -243,7 +245,7 @@ struct BudgetWidgetEntryView : View {
                                     ? Color(red: 148/255, green: 163/255, blue: 184/255)
                                     : Color(red: 100/255, green: 116/255, blue: 139/255))
                             
-                            Text("₹\(Int(remaining))")
+                            Text(isPrivacyMode ? "••••" : "₹\(Int(remaining))")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(isOverBudget 
                                     ? Color(red: 239/255, green: 68/255, blue: 68/255)
@@ -327,7 +329,7 @@ struct BudgetWidget: Widget {
 
 struct BudgetWidget_Previews: PreviewProvider {
     static var previews: some View {
-        BudgetWidgetEntryView(entry: SimpleEntry(date: Date(), data: BudgetData(expense: 12000, income: 50000, budget: 30000, month: "Jan")))
+        BudgetWidgetEntryView(entry: SimpleEntry(date: Date(), data: BudgetData(expense: 12000, income: 50000, budget: 30000, month: "Jan", hideData: false)))
             .previewContext(WidgetPreviewContext(family: .systemSmall))
     }
 }

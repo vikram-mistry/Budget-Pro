@@ -63,7 +63,9 @@ const initialState = {
   accountDueDays: {},
   monthStartDate: 1,
   categories: { "Groceries": { type: "expense", budget: 0 }, "Dining": { type: "expense", budget: 0 }, "Transport": { type: "expense", budget: 0 }, "Housing": { type: "expense", budget: 0 }, "Salary": { type: "income", budget: 0 }, "Cashback": { type: "income", budget: 0 }, "Reversal": { type: "income", budget: 0 }, "Gift": { type: "income", budget: 0 }, "Maintenance": { type: "expense", budget: 0 }, "EMI": { type: "expense", budget: 0 }, "Invest": { type: "expense", budget: 0 }, "Transfer": { type: "neutral", budget: 0 }, "Subscription": { type: "expense", budget: 0 }, "Tax": { type: "expense", budget: 0 }, "Bills": { type: "expense", budget: 0 }, "Education": { type: "expense", budget: 0 }, "Health": { type: "expense", budget: 0 }, "Apparels": { type: "expense", budget: 0 }, "Beauty": { type: "expense", budget: 0 }, "Toys": { type: "expense", budget: 0 }, "Electronics": { type: "expense", budget: 0 }, "Other": { type: "expense", budget: 0 } },
-  reminderPayments: {}
+  reminderPayments: {},
+  faceIdEnabled: false,
+  hideWidgetData: false
 };
 
 // --- IndexedDB Storage Logic ---
@@ -160,6 +162,96 @@ function cancelNotification(id) {
   }
 }
 
+// ===== BIOMETRIC AUTHENTICATION BRIDGE =====
+// Check if biometrics (Face ID / Touch ID) available on device
+function checkBiometricAvailable() {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.biometricBridge) {
+    window.webkit.messageHandlers.biometricBridge.postMessage('check');
+  }
+}
+
+// Trigger biometric authentication
+function authenticateBiometric() {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.biometricBridge) {
+    window.webkit.messageHandlers.biometricBridge.postMessage('authenticate');
+  }
+}
+
+// Handle biometric result callback from native
+let biometricResolve = null;
+let biometricType = 'notAvailable'; // faceID, touchID, or notAvailable
+
+window.handleBiometricResult = function (result) {
+  console.log('Biometric result:', result);
+
+  if (result.type === 'check') {
+    if (result.success) {
+      biometricType = result.message; // 'faceID' or 'touchID'
+      updateSecurityUI();
+    } else {
+      biometricType = 'notAvailable';
+      hideSecuritySection();
+    }
+  } else if (result.type === 'authenticate') {
+    if (result.success) {
+      unlockApp();
+    } else if (result.message === 'cancelled') {
+      // User cancelled, do nothing - stay on lock screen
+      console.log('Authentication cancelled by user');
+    } else {
+      showLockScreenError();
+    }
+  }
+};
+
+function updateSecurityUI() {
+  const label = document.getElementById('biometricLabel');
+  const status = document.getElementById('biometricStatus');
+  const unlockText = document.getElementById('unlockBtnText');
+
+  if (biometricType === 'faceID') {
+    if (label) label.textContent = 'Face ID Lock';
+    if (status) status.textContent = 'Require Face ID to open app';
+    if (unlockText) unlockText.textContent = 'Unlock with Face ID';
+  } else if (biometricType === 'touchID') {
+    if (label) label.textContent = 'Touch ID Lock';
+    if (status) status.textContent = 'Require Touch ID to open app';
+    if (unlockText) unlockText.textContent = 'Unlock with Touch ID';
+  }
+}
+
+function hideSecuritySection() {
+  const section = document.getElementById('securitySection');
+  if (section) section.classList.add('hidden');
+}
+
+function showLockScreen() {
+  const lockScreen = document.getElementById('lockScreen');
+  if (lockScreen) {
+    lockScreen.classList.remove('hidden');
+    lockScreen.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function unlockApp() {
+  const lockScreen = document.getElementById('lockScreen');
+  const error = document.getElementById('lockScreenError');
+  if (lockScreen) {
+    lockScreen.classList.add('hidden');
+    lockScreen.classList.remove('flex');
+    document.body.style.overflow = '';
+  }
+  if (error) error.classList.add('hidden');
+  triggerHaptic('success');
+}
+
+function showLockScreenError() {
+  const error = document.getElementById('lockScreenError');
+  if (error) error.classList.remove('hidden');
+  triggerHaptic('error');
+}
+
 // Schedule notifications for recurring bills due within 7 days
 function scheduleBillReminders() {
   if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.notificationBridge) return;
@@ -207,7 +299,8 @@ function syncWidgetData() {
       expense: totalExpense,
       income: totalIncome,
       budget: state.budgetMonthly || 0,
-      month: cycleLabel
+      month: cycleLabel,
+      hideData: state.hideWidgetData || false
     };
 
     const jsonStr = JSON.stringify(widgetPayload);
@@ -1286,6 +1379,77 @@ document.getElementById("monthStartDateInput").addEventListener('change', (e) =>
 // Set initial value
 document.getElementById("monthStartDateInput").value = state.monthStartDate || 1;
 
+// ===== FACE ID SETTINGS =====
+const faceIdToggleBtn = document.getElementById("faceIdToggleBtn");
+const faceIdToggleKnob = document.getElementById("faceIdToggleKnob");
+const widgetPrivacyRow = document.getElementById("widgetPrivacyRow");
+const widgetPrivacyToggleBtn = document.getElementById("widgetPrivacyToggleBtn");
+const widgetPrivacyToggleKnob = document.getElementById("widgetPrivacyToggleKnob");
+
+function updateFaceIdToggleUI() {
+  if (!faceIdToggleBtn || !faceIdToggleKnob) return;
+
+  if (state.faceIdEnabled) {
+    faceIdToggleBtn.classList.add("bg-emerald-500", "border-emerald-400");
+    faceIdToggleBtn.classList.remove("bg-slate-800", "border-slate-600/70");
+    faceIdToggleKnob.style.left = "calc(100% - 22px)";
+    faceIdToggleKnob.classList.add("bg-white");
+    faceIdToggleKnob.classList.remove("bg-slate-600");
+    if (widgetPrivacyRow) widgetPrivacyRow.classList.remove("hidden");
+  } else {
+    faceIdToggleBtn.classList.remove("bg-emerald-500", "border-emerald-400");
+    faceIdToggleBtn.classList.add("bg-slate-800", "border-slate-600/70");
+    faceIdToggleKnob.style.left = "2px";
+    faceIdToggleKnob.classList.remove("bg-white");
+    faceIdToggleKnob.classList.add("bg-slate-600");
+    if (widgetPrivacyRow) widgetPrivacyRow.classList.add("hidden");
+  }
+}
+
+function updateWidgetPrivacyToggleUI() {
+  if (!widgetPrivacyToggleBtn || !widgetPrivacyToggleKnob) return;
+
+  if (state.hideWidgetData) {
+    widgetPrivacyToggleBtn.classList.add("bg-emerald-500", "border-emerald-400");
+    widgetPrivacyToggleBtn.classList.remove("bg-slate-800", "border-slate-600/70");
+    widgetPrivacyToggleKnob.style.left = "calc(100% - 22px)";
+    widgetPrivacyToggleKnob.classList.add("bg-white");
+    widgetPrivacyToggleKnob.classList.remove("bg-slate-600");
+  } else {
+    widgetPrivacyToggleBtn.classList.remove("bg-emerald-500", "border-emerald-400");
+    widgetPrivacyToggleBtn.classList.add("bg-slate-800", "border-slate-600/70");
+    widgetPrivacyToggleKnob.style.left = "2px";
+    widgetPrivacyToggleKnob.classList.remove("bg-white");
+    widgetPrivacyToggleKnob.classList.add("bg-slate-600");
+  }
+}
+
+if (faceIdToggleBtn) {
+  faceIdToggleBtn.addEventListener('click', () => {
+    state.faceIdEnabled = !state.faceIdEnabled;
+    updateFaceIdToggleUI();
+    saveState();
+    triggerHaptic('selection');
+  });
+}
+
+if (widgetPrivacyToggleBtn) {
+  widgetPrivacyToggleBtn.addEventListener('click', () => {
+    state.hideWidgetData = !state.hideWidgetData;
+    updateWidgetPrivacyToggleUI();
+    saveState();
+    syncWidgetData(); // Update widget immediately
+    triggerHaptic('selection');
+  });
+}
+
+// Initialize Face ID toggle UI after state loads
+function initSecuritySettings() {
+  checkBiometricAvailable(); // Check device capability
+  updateFaceIdToggleUI();
+  updateWidgetPrivacyToggleUI();
+}
+
 // Data Management: Reset
 const resetBtn = document.getElementById("resetDataBtn");
 if (resetBtn) {
@@ -1405,7 +1569,8 @@ async function initApp() {
   const loaded = await IDBStorage.load();
 
   if (loaded) {
-    state = loaded;
+    // Merge with initialState to ensure new properties have defaults
+    state = Object.assign(structuredClone(initialState), loaded);
   } else {
     // 2. Migration: Check localStorage
     const localRaw = localStorage.getItem(STORAGE_KEY);
@@ -1448,6 +1613,32 @@ async function initApp() {
     scheduleBillReminders(); // Schedule notifications for bills due within 7 days
     console.log("Initial Widget Sync + Bill Reminders Triggered");
   }, 1000);
+
+  // Face ID: Initialize security settings and check if auth required
+  initSecuritySettings();
+
+  // Debug: Log Face ID state
+  console.log("🔐 Face ID Enabled:", state.faceIdEnabled);
+  console.log("🔐 Hide Widget Data:", state.hideWidgetData);
+
+  // Check if Face ID is enabled and show lock screen
+  if (state.faceIdEnabled === true) {
+    console.log("🔐 Showing lock screen...");
+    showLockScreen();
+    // Auto-trigger authentication
+    setTimeout(() => {
+      console.log("🔐 Triggering biometric auth...");
+      authenticateBiometric();
+    }, 500);
+  }
+}
+
+// Unlock button listener
+const unlockBtn = document.getElementById("unlockBtn");
+if (unlockBtn) {
+  unlockBtn.addEventListener('click', () => {
+    authenticateBiometric();
+  });
 }
 
 initApp();
